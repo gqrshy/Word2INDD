@@ -72,13 +72,16 @@ var CONFIG = {
     },
 
     // 表（テーブル）設定
-    // enabled: false にすると、Wordの表をそのまま保持（v26以前の動作）
     tableSettings: {
-        enabled: false,  // trueにすると罫線・余白・フォントを統一
-        // 罫線設定
+        enabled: true,  // 表の処理を有効化
+        // 個別の処理オプション
+        applyStroke: false,      // 罫線を変更しない（Wordの形式を保持）
+        applyCellInset: false,   // セル余白を変更しない（Wordの形式を保持）
+        applyDefaultFont: true,  // フォントをBIZ UDゴシックに変更
+        // 罫線設定（applyStroke: true の場合に使用）
         strokeWeight: 0.5,
         strokeColor: "Black",
-        // セル設定
+        // セル設定（applyCellInset: true の場合に使用）
         cellInset: {
             top: 2,
             bottom: 2,
@@ -86,10 +89,7 @@ var CONFIG = {
             right: 3
         },
         // ヘッダー行の設定
-        headerRowFill: "None",
-        headerRowBold: true,
-        // 表のフォント設定（CONFIG.defaultFontを使用）
-        applyDefaultFont: true
+        headerRowBold: false  // false = 全てRegular、true = ヘッダー行のみBold
     },
     
     // スタイルを強制的に再作成
@@ -138,8 +138,8 @@ function main() {
     confirmMsg += "・リスト → リスト(14.817Q、・付き)\n";
     confirmMsg += "・番号リスト → 自動採番(演習タイトル後でリセット)\n\n";
     confirmMsg += "【表（テーブル）処理】\n";
-    confirmMsg += "・Word内の表を保持・フォーマット\n";
-    confirmMsg += "・罫線・セル余白の統一\n\n";
+    confirmMsg += "・Word内の表の形式を保持\n";
+    confirmMsg += "・フォントのみBIZ UDゴシックに変更\n\n";
     confirmMsg += "【フォント統一】\n";
     confirmMsg += "・BIZ UDゴシックに統一\n";
     confirmMsg += "・MS明朝などを強制置換\n\n";
@@ -1032,19 +1032,21 @@ function processImportedTables(doc) {
 
                 debugLog("表 " + (j + 1) + ": " + table.rows.length + "行 x " + table.columns.length + "列");
 
-                // 表全体の罫線を設定
-                try {
-                    // 外枠の罫線
-                    table.topBorderStrokeWeight = CONFIG.tableSettings.strokeWeight;
-                    table.bottomBorderStrokeWeight = CONFIG.tableSettings.strokeWeight;
-                    table.leftBorderStrokeWeight = CONFIG.tableSettings.strokeWeight;
-                    table.rightBorderStrokeWeight = CONFIG.tableSettings.strokeWeight;
-                    table.topBorderStrokeColor = strokeColor;
-                    table.bottomBorderStrokeColor = strokeColor;
-                    table.leftBorderStrokeColor = strokeColor;
-                    table.rightBorderStrokeColor = strokeColor;
-                } catch (e) {
-                    debugLog("表罫線設定エラー: " + e.message);
+                // 表全体の罫線を設定（applyStroke が true の場合のみ）
+                if (CONFIG.tableSettings.applyStroke) {
+                    try {
+                        // 外枠の罫線
+                        table.topBorderStrokeWeight = CONFIG.tableSettings.strokeWeight;
+                        table.bottomBorderStrokeWeight = CONFIG.tableSettings.strokeWeight;
+                        table.leftBorderStrokeWeight = CONFIG.tableSettings.strokeWeight;
+                        table.rightBorderStrokeWeight = CONFIG.tableSettings.strokeWeight;
+                        table.topBorderStrokeColor = strokeColor;
+                        table.bottomBorderStrokeColor = strokeColor;
+                        table.leftBorderStrokeColor = strokeColor;
+                        table.rightBorderStrokeColor = strokeColor;
+                    } catch (e) {
+                        debugLog("表罫線設定エラー: " + e.message);
+                    }
                 }
 
                 // 各セルを処理
@@ -1053,23 +1055,27 @@ function processImportedTables(doc) {
                     try {
                         var cell = cells[k];
 
-                        // セルの内部余白を設定
-                        cell.topInset = CONFIG.tableSettings.cellInset.top;
-                        cell.bottomInset = CONFIG.tableSettings.cellInset.bottom;
-                        cell.leftInset = CONFIG.tableSettings.cellInset.left;
-                        cell.rightInset = CONFIG.tableSettings.cellInset.right;
+                        // セルの内部余白を設定（applyCellInset が true の場合のみ）
+                        if (CONFIG.tableSettings.applyCellInset) {
+                            cell.topInset = CONFIG.tableSettings.cellInset.top;
+                            cell.bottomInset = CONFIG.tableSettings.cellInset.bottom;
+                            cell.leftInset = CONFIG.tableSettings.cellInset.left;
+                            cell.rightInset = CONFIG.tableSettings.cellInset.right;
+                        }
 
-                        // セルの罫線を設定
-                        cell.topEdgeStrokeWeight = CONFIG.tableSettings.strokeWeight;
-                        cell.bottomEdgeStrokeWeight = CONFIG.tableSettings.strokeWeight;
-                        cell.leftEdgeStrokeWeight = CONFIG.tableSettings.strokeWeight;
-                        cell.rightEdgeStrokeWeight = CONFIG.tableSettings.strokeWeight;
-                        cell.topEdgeStrokeColor = strokeColor;
-                        cell.bottomEdgeStrokeColor = strokeColor;
-                        cell.leftEdgeStrokeColor = strokeColor;
-                        cell.rightEdgeStrokeColor = strokeColor;
+                        // セルの罫線を設定（applyStroke が true の場合のみ）
+                        if (CONFIG.tableSettings.applyStroke) {
+                            cell.topEdgeStrokeWeight = CONFIG.tableSettings.strokeWeight;
+                            cell.bottomEdgeStrokeWeight = CONFIG.tableSettings.strokeWeight;
+                            cell.leftEdgeStrokeWeight = CONFIG.tableSettings.strokeWeight;
+                            cell.rightEdgeStrokeWeight = CONFIG.tableSettings.strokeWeight;
+                            cell.topEdgeStrokeColor = strokeColor;
+                            cell.bottomEdgeStrokeColor = strokeColor;
+                            cell.leftEdgeStrokeColor = strokeColor;
+                            cell.rightEdgeStrokeColor = strokeColor;
+                        }
 
-                        // フォントを適用
+                        // フォントを適用（applyDefaultFont が true の場合のみ）
                         if (targetFont && CONFIG.tableSettings.applyDefaultFont) {
                             var isHeaderRow = (cell.rowSpan > 0 && table.rows[0] &&
                                              cell.parentRow === table.rows[0]);
