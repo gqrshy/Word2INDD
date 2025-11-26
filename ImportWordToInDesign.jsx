@@ -22,8 +22,7 @@ var CONFIG = {
         // 小項目 → 小項目 (□記号を保持)
         "小項目": "小項目",
 
-        // 標準 → Normal
-        "Normal": "Normal",
+        // 標準 → Normal (インポートしたストーリーのみ)
         "標準": "Normal",
 
         // 演習タイトル → 演習タイトル
@@ -106,11 +105,13 @@ function main() {
         // Word文書をインポート
         var result = importWordDocument(doc, wordFile, hMaster);
 
-        // 段落スタイルをマッピング
-        result.stylesApplied = applyStyleMapping(doc);
+        // インポートしたストーリーのみに段落スタイルをマッピング
+        if (result.importedStory) {
+            result.stylesApplied = applyStyleMapping(doc, result.importedStory);
 
-        // 小項目に□記号を追加（まだない場合）
-        result.kokomokuFixed = addKokomokuSymbol(doc);
+            // 小項目に□記号を追加（まだない場合）
+            result.kokomokuFixed = addKokomokuSymbol(doc, result.importedStory);
+        }
 
         var endTime = new Date();
         var duration = (endTime - startTime) / 1000;
@@ -159,7 +160,8 @@ function importWordDocument(doc, wordFile, master) {
         spreadsCreated: 0,
         paragraphsImported: 0,
         stylesApplied: 0,
-        kokomokuFixed: 0
+        kokomokuFixed: 0,
+        importedStory: null  // インポートしたストーリーを記録
     };
 
     // 最後のページを取得
@@ -178,6 +180,10 @@ function importWordDocument(doc, wordFile, master) {
     try {
         textFrame.place(wordFile);
         debugLog("Word文書を配置完了");
+
+        // インポートしたストーリーを記録
+        result.importedStory = textFrame.parentStory;
+        debugLog("インポートしたストーリーID: " + result.importedStory.id);
     } catch (e) {
         throw new Error("Word文書の読み込み失敗: " + e.message);
     }
@@ -188,7 +194,7 @@ function importWordDocument(doc, wordFile, master) {
         result.spreadsCreated = autoFlowWithSpreads(doc, textFrame, master);
     }
 
-    result.paragraphsImported = countParagraphs(doc);
+    result.paragraphsImported = result.importedStory ? result.importedStory.paragraphs.length : 0;
 
     return result;
 }
@@ -380,44 +386,46 @@ function autoFlowWithSpreads(doc, startFrame, master) {
     return spreadsCreated;
 }
 
-// スタイルマッピングを適用
-function applyStyleMapping(doc) {
-    var stories = doc.stories;
+// スタイルマッピングを適用（インポートしたストーリーのみ）
+function applyStyleMapping(doc, importedStory) {
     var mappingCount = 0;
 
-    debugLog("=== スタイルマッピング開始 ===");
+    debugLog("=== スタイルマッピング開始（インポートしたストーリーのみ） ===");
 
-    for (var i = 0; i < stories.length; i++) {
-        var paragraphs = stories[i].paragraphs;
+    if (!importedStory || !importedStory.isValid) {
+        debugLog("有効なストーリーがありません");
+        return 0;
+    }
 
-        for (var j = 0; j < paragraphs.length; j++) {
-            var para = paragraphs[j];
-            var currentStyleName = para.appliedParagraphStyle.name;
+    var paragraphs = importedStory.paragraphs;
 
-            // スタイルマッピングに該当するか確認
-            if (CONFIG.styleMapping.hasOwnProperty(currentStyleName)) {
-                var targetStyleName = CONFIG.styleMapping[currentStyleName];
+    for (var j = 0; j < paragraphs.length; j++) {
+        var para = paragraphs[j];
+        var currentStyleName = para.appliedParagraphStyle.name;
 
-                try {
-                    var targetStyle = doc.paragraphStyles.itemByName(targetStyleName);
-                    if (targetStyle.isValid) {
-                        // 大項目→大見出し1の場合、先頭の■を削除
-                        if (currentStyleName === "大項目" && targetStyleName === "大見出し1") {
-                            removeLeadingSymbol(para, "■");
-                        }
+        // スタイルマッピングに該当するか確認
+        if (CONFIG.styleMapping.hasOwnProperty(currentStyleName)) {
+            var targetStyleName = CONFIG.styleMapping[currentStyleName];
 
-                        para.appliedParagraphStyle = targetStyle;
-                        mappingCount++;
-
-                        if (mappingCount <= 5) {
-                            debugLog("スタイル変換: " + currentStyleName + " → " + targetStyleName);
-                        }
-                    } else {
-                        debugLog("対象スタイルが見つかりません: " + targetStyleName);
+            try {
+                var targetStyle = doc.paragraphStyles.itemByName(targetStyleName);
+                if (targetStyle.isValid) {
+                    // 大項目→大見出し1の場合、先頭の■を削除
+                    if (currentStyleName === "大項目" && targetStyleName === "大見出し1") {
+                        removeLeadingSymbol(para, "■");
                     }
-                } catch (e) {
-                    debugLog("スタイル適用エラー: " + e.message);
+
+                    para.appliedParagraphStyle = targetStyle;
+                    mappingCount++;
+
+                    if (mappingCount <= 5) {
+                        debugLog("スタイル変換: " + currentStyleName + " → " + targetStyleName);
+                    }
+                } else {
+                    debugLog("対象スタイルが見つかりません: " + targetStyleName);
                 }
+            } catch (e) {
+                debugLog("スタイル適用エラー: " + e.message);
             }
         }
     }
@@ -445,8 +453,8 @@ function removeLeadingSymbol(para, symbol) {
     }
 }
 
-// 小項目に□記号を追加
-function addKokomokuSymbol(doc) {
+// 小項目に□記号を追加（インポートしたストーリーのみ）
+function addKokomokuSymbol(doc, importedStory) {
     var addCount = 0;
     var kokomokuStyle = doc.paragraphStyles.itemByName("小項目");
 
@@ -455,37 +463,38 @@ function addKokomokuSymbol(doc) {
         return 0;
     }
 
-    debugLog("=== 小項目に□記号を追加開始 ===");
+    if (!importedStory || !importedStory.isValid) {
+        debugLog("有効なストーリーがありません");
+        return 0;
+    }
 
-    var stories = doc.stories;
+    debugLog("=== 小項目に□記号を追加開始（インポートしたストーリーのみ） ===");
+
     var symbol = CONFIG.kokomokuSymbol;
+    var paragraphs = importedStory.paragraphs;
 
-    for (var i = 0; i < stories.length; i++) {
-        var paragraphs = stories[i].paragraphs;
+    for (var j = 0; j < paragraphs.length; j++) {
+        var para = paragraphs[j];
 
-        for (var j = 0; j < paragraphs.length; j++) {
-            var para = paragraphs[j];
+        if (para.appliedParagraphStyle.name === "小項目") {
+            try {
+                var paraText = para.contents;
 
-            if (para.appliedParagraphStyle.name === "小項目") {
-                try {
-                    var paraText = para.contents;
-
-                    // 既に□で始まっている場合はスキップ
-                    if (paraText.indexOf("□") === 0) {
-                        debugLog("既に□あり: 段落 " + j);
-                        continue;
-                    }
-
-                    // 段落の先頭に□記号を挿入
-                    para.contents = symbol + paraText;
-                    addCount++;
-
-                    if (addCount <= 5) {
-                        debugLog("□記号追加: 段落 " + j);
-                    }
-                } catch (e) {
-                    debugLog("□記号追加エラー: " + e.message);
+                // 既に□で始まっている場合はスキップ
+                if (paraText.indexOf("□") === 0) {
+                    debugLog("既に□あり: 段落 " + j);
+                    continue;
                 }
+
+                // 段落の先頭に□記号を挿入
+                para.contents = symbol + paraText;
+                addCount++;
+
+                if (addCount <= 5) {
+                    debugLog("□記号追加: 段落 " + j);
+                }
+            } catch (e) {
+                debugLog("□記号追加エラー: " + e.message);
             }
         }
     }
