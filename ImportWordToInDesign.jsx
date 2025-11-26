@@ -79,7 +79,7 @@ function main() {
     // 確認ダイアログ
     var confirmMsg = "Word文書をインポートします\n\n";
     confirmMsg += "【段落スタイル変換】\n";
-    confirmMsg += "・大項目 → 大見出し1\n";
+    confirmMsg += "・大項目 → 大見出し1 (■削除)\n";
     confirmMsg += "・小項目 → 小項目 (□記号保持)\n";
     confirmMsg += "・標準/Normal → Normal\n";
     confirmMsg += "・演習タイトル → 演習タイトル\n\n";
@@ -397,6 +397,11 @@ function applyStyleMapping(doc) {
                 try {
                     var targetStyle = doc.paragraphStyles.itemByName(targetStyleName);
                     if (targetStyle.isValid) {
+                        // 大項目→大見出し1の場合、先頭の■を削除
+                        if (currentStyleName === "大項目" && targetStyleName === "大見出し1") {
+                            removeLeadingSymbol(para, "■");
+                        }
+
                         para.appliedParagraphStyle = targetStyle;
                         mappingCount++;
 
@@ -415,6 +420,25 @@ function applyStyleMapping(doc) {
 
     debugLog("スタイルマッピング完了: " + mappingCount + "件");
     return mappingCount;
+}
+
+// 段落先頭の記号を削除
+function removeLeadingSymbol(para, symbol) {
+    try {
+        var paraText = para.contents;
+
+        // 先頭が指定記号で始まっている場合
+        if (paraText.indexOf(symbol) === 0) {
+            // 記号とその後のスペース（全角・半角）を削除
+            var newText = paraText.substring(1);
+            // 先頭のスペースも削除
+            newText = newText.replace(/^[\s　]+/, "");
+            para.contents = newText;
+            debugLog("■記号を削除: " + symbol);
+        }
+    } catch (e) {
+        debugLog("記号削除エラー: " + e.message);
+    }
 }
 
 // 小項目に□記号を追加
