@@ -1,0 +1,320 @@
+ImportWordToInDesign.jsx 関数リファレンス
+
+
+概要
+
+このスクリプトはWord文書をInDesignにインポートし、段落スタイルの変換、
+フォントの置換、ページの自動追加などを行います。InDesign 2025で動作確認済み。
+
+
+設定オブジェクト
+
+CONFIG
+  スクリプト全体の動作を制御する設定値を保持するオブジェクト。
+
+  プロパティ:
+    autoCreatePages   テキストがあふれた場合に自動でページを追加するか (真偽値)
+    maxSpreads        自動追加する見開きの最大数 (整数)
+    masterPagePrefix  使用するマスターページの接頭辞 (文字列)
+    masterPageName    使用するマスターページの名前 (文字列)
+    styleMapping      Word段落スタイルからInDesign段落スタイルへの対応表 (オブジェクト)
+    kokomokuSymbol    小項目の先頭に追加する記号 (文字列)
+    fallbackMargin    テキストフレーム作成時の余白設定 (オブジェクト)
+    debugMode         デバッグログを出力するか (真偽値)
+
+
+デバッグ
+
+debugLog(message)
+  デバッグモードが有効な場合にコンソールへメッセージを出力する。
+
+  引数:
+    message  出力するメッセージ (文字列)
+
+  戻り値:
+    なし
+
+
+Wordインポート関連
+
+configureWordImportPreferences()
+  InDesignのWord/RTFインポート設定を構成する。
+  書式の保持、画像の保持、脚注のインポートなどを有効にする。
+
+  引数:
+    なし
+
+  戻り値:
+    なし
+
+
+detectEmbeddedObjectIssues(story)
+  ストーリー内の埋め込みオブジェクトに関する問題を検出する。
+  Wordの埋め込み表が正しく変換されなかった場合に残る孤立した記号を探す。
+
+  引数:
+    story  検査対象のストーリー (Story)
+
+  戻り値:
+    検出された問題の件数 (整数)
+
+
+importWordDocument(doc, wordFile, master)
+  Word文書をInDesignドキュメントにインポートする。
+  テキストフレームの取得、文書の配置、必要に応じたページ追加を行う。
+
+  引数:
+    doc       対象のInDesignドキュメント (Document)
+    wordFile  インポートするWordファイル (File)
+    master    適用するマスターページ (MasterSpread)
+
+  戻り値:
+    インポート結果を格納したオブジェクト
+      spreadsCreated       追加した見開きの数
+      paragraphsImported   インポートした段落の数
+      stylesApplied        適用したスタイルの数
+      kokomokuFixed        修正した小項目の数
+      importedStory        インポートしたストーリー
+      embeddedObjectIssues 埋め込みオブジェクトの問題件数
+
+
+テキストフレーム管理
+
+getOrCreateTextFrame(doc, page)
+  指定したページで使用可能なテキストフレームを取得する。
+  マスターページのフレームをオーバーライドするか、既存のフレームを使用するか、
+  新規に作成するかを自動で判断する。
+
+  引数:
+    doc   対象のInDesignドキュメント (Document)
+    page  対象のページ (Page)
+
+  戻り値:
+    テキストフレーム (TextFrame)、取得できない場合はnull
+
+
+overrideMasterTextFrame(page)
+  マスターページのテキストフレームをオーバーライドして取得する。
+
+  引数:
+    page  対象のページ (Page)
+
+  戻り値:
+    オーバーライドしたテキストフレーム (TextFrame)、失敗した場合はnull
+
+
+createTextFrame(doc, page)
+  新規のテキストフレームを作成する。
+  見開きページの左右を考慮して適切な位置に配置する。
+
+  引数:
+    doc   対象のInDesignドキュメント (Document)
+    page  対象のページ (Page)
+
+  戻り値:
+    作成したテキストフレーム (TextFrame)
+
+
+autoFlowWithSpreads(doc, startFrame, master)
+  テキストがあふれている場合に見開きを追加してテキストを流し込む。
+  各見開きにマスターページを適用し、テキストフレームを連結する。
+
+  引数:
+    doc         対象のInDesignドキュメント (Document)
+    startFrame  開始テキストフレーム (TextFrame)
+    master      適用するマスターページ (MasterSpread)
+
+  戻り値:
+    追加した見開きの数 (整数)
+
+
+スタイル変換
+
+applyStyleMapping(doc, importedStory)
+  インポートしたストーリー内の段落スタイルを変換する。
+  CONFIGのstyleMappingに従ってWordのスタイルをInDesignのスタイルに置き換える。
+
+  引数:
+    doc            対象のInDesignドキュメント (Document)
+    importedStory  インポートしたストーリー (Story)
+
+  戻り値:
+    変換したスタイルの件数 (整数)
+
+
+removeLeadingSymbol(para, symbol)
+  段落の先頭から指定した記号を削除する。
+  大項目スタイルの先頭にある黒四角記号の削除に使用。
+
+  引数:
+    para    対象の段落 (Paragraph)
+    symbol  削除する記号 (文字列)
+
+  戻り値:
+    なし
+
+
+addKokomokuSymbol(doc, importedStory)
+  小項目スタイルが適用された段落の先頭に白四角記号を追加する。
+  既に記号がある場合や、表やインラインオブジェクトを含む段落はスキップする。
+
+  引数:
+    doc            対象のInDesignドキュメント (Document)
+    importedStory  インポートしたストーリー (Story)
+
+  戻り値:
+    記号を追加した段落の数 (整数)
+
+
+フォント置換
+
+replaceFonts(importedStory)
+  ストーリー内のMS明朝ボールド体をBIZ UDゴシックに置換する。
+
+  引数:
+    importedStory  インポートしたストーリー (Story)
+
+  戻り値:
+    置換した文字数 (整数)
+
+
+updateAllTableFonts(doc)
+  ドキュメント内の全ての表について、MS明朝系フォントをBIZ UDゴシックに置換する。
+
+  引数:
+    doc  対象のInDesignドキュメント (Document)
+
+  戻り値:
+    置換した文字数 (整数)
+
+
+表セルスタイル処理
+
+applyCodeStyleToTableCells(doc, importedStory)
+  インポートしたストーリー内の全ての表セルに「コード・コマンド」段落スタイルを適用する。
+  空の段落はスキップする。
+
+  引数:
+    doc            対象のInDesignドキュメント (Document)
+    importedStory  インポートしたストーリー (Story)
+
+  戻り値:
+    スタイルを適用した段落の数 (整数)
+
+
+アンカードオブジェクト処理
+
+applyCodeStyleToAnchoredObjects(doc, importedStory)
+  ストーリー内のアンカードオブジェクト(テキストボックスや図形)内のテキストに
+  「コード・コマンド」段落スタイルを適用する。
+
+  引数:
+    doc            対象のInDesignドキュメント (Document)
+    importedStory  インポートしたストーリー (Story)
+
+  戻り値:
+    スタイルを適用した段落の数 (整数)
+
+
+processAnchoredItem(item, codeStyle)
+  個々のアンカードオブジェクトを処理する。
+  グループの場合は再帰的に内部のアイテムを処理する。
+
+  引数:
+    item       処理対象のページアイテム (PageItem)
+    codeStyle  適用する段落スタイル (ParagraphStyle)
+
+  戻り値:
+    スタイルを適用した段落の数 (整数)
+
+
+ユーティリティ
+
+listMasterPages(doc)
+  ドキュメント内の全てのマスターページ名を改行区切りで取得する。
+
+  引数:
+    doc  対象のInDesignドキュメント (Document)
+
+  戻り値:
+    マスターページ名の一覧 (文字列)
+
+
+getMasterPage(doc, masterName)
+  名前を指定してマスターページを取得する。
+
+  引数:
+    doc         対象のInDesignドキュメント (Document)
+    masterName  マスターページの名前 (文字列)
+
+  戻り値:
+    マスターページ (MasterSpread)、見つからない場合はnull
+
+
+countParagraphs(doc)
+  ドキュメント内の全ストーリーに含まれる段落の総数を数える。
+
+  引数:
+    doc  対象のInDesignドキュメント (Document)
+
+  戻り値:
+    段落の総数 (整数)
+
+
+メイン処理
+
+main()
+  スクリプトのエントリーポイント。
+  以下の処理を順番に実行する。
+
+  1. ドキュメントが開かれているか確認
+  2. マスターページの存在確認
+  3. Word文書の選択ダイアログを表示
+  4. 処理内容の確認ダイアログを表示
+  5. Word文書のインポート
+  6. 段落スタイルの変換
+  7. 小項目への記号追加
+  8. フォントの置換
+  9. 図内テキストへのスタイル適用
+  10. 表セルへのスタイル適用
+  11. 表内フォントの更新
+  12. 結果の表示
+
+  引数:
+    なし
+
+  戻り値:
+    なし
+
+
+処理の流れ
+
+スクリプトを実行すると、まずWord文書を選択するダイアログが表示される。
+文書を選択すると、処理内容の確認ダイアログが表示される。
+OKを押すと、以下の順序で処理が実行される。
+
+  Word文書の配置
+    選択したWord文書をテキストフレームに配置する。
+    テキストがあふれる場合は自動的に見開きを追加する。
+
+  スタイル変換
+    Wordの段落スタイルをInDesignの段落スタイルに変換する。
+    対応表はCONFIG.styleMappingで定義されている。
+
+  小項目の処理
+    小項目スタイルの段落に白四角記号を追加する。
+
+  フォント置換
+    MS明朝系のフォントをBIZ UDゴシックに置換する。
+
+  図内テキスト処理
+    テキストボックスなどのアンカードオブジェクト内のテキストに
+    コード・コマンドスタイルを適用する。
+
+  表セル処理
+    表のセル内のテキストにコード・コマンドスタイルを適用する。
+
+  表フォント更新
+    ドキュメント内の全ての表についてフォントを更新する。
+
+処理が完了すると、結果を示すダイアログが表示される。

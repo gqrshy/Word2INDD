@@ -587,6 +587,74 @@ function updateAllTableFonts(doc) {
 }
 
 // ============================================================
+// 表セルスタイル処理
+// ============================================================
+
+function applyCodeStyleToTableCells(doc, importedStory) {
+    var styleApplied = 0;
+    var tableCount = 0;
+
+    debugLog("=== 表セル内にコード・コマンドスタイル適用開始 ===");
+
+    if (!importedStory || !importedStory.isValid) {
+        debugLog("有効なストーリーがありません");
+        return 0;
+    }
+
+    var codeStyle;
+    try {
+        codeStyle = doc.paragraphStyles.itemByName("コード・コマンド");
+        if (!codeStyle.isValid) {
+            debugLog("「コード・コマンド」スタイルが見つかりません");
+            return 0;
+        }
+    } catch (e) {
+        debugLog("「コード・コマンド」スタイル取得エラー: " + e.message);
+        return 0;
+    }
+
+    debugLog("「コード・コマンド」スタイルを使用します");
+
+    var tables = importedStory.tables;
+    for (var t = 0; t < tables.length; t++) {
+        var table = tables[t];
+        tableCount++;
+
+        debugLog("表 " + tableCount + " を処理中...");
+
+        var cells = table.cells;
+        for (var c = 0; c < cells.length; c++) {
+            var cell = cells[c];
+
+            try {
+                var paragraphs = cell.paragraphs;
+                for (var p = 0; p < paragraphs.length; p++) {
+                    try {
+                        var para = paragraphs[p];
+                        var content = para.contents.replace(/[\r\n\s　]/g, "");
+                        if (content.length === 0) {
+                            continue;
+                        }
+
+                        para.appliedParagraphStyle = codeStyle;
+                        styleApplied++;
+
+                        if (styleApplied <= 5) {
+                            debugLog("表セルにスタイル適用: " + para.contents.substring(0, 30) + "...");
+                        }
+                    } catch (e) {}
+                }
+            } catch (e) {
+                debugLog("セル段落処理エラー: " + e.message);
+            }
+        }
+    }
+
+    debugLog("表セル内コード・コマンドスタイル適用完了: " + tableCount + "表, " + styleApplied + "段落");
+    return styleApplied;
+}
+
+// ============================================================
 // アンカードオブジェクト処理
 // ============================================================
 
@@ -774,7 +842,8 @@ function main() {
     confirmMsg += "・図表番号 → 図番号\n";
     confirmMsg += "・リスト → リスト\n";
     confirmMsg += "・番号 → 番号リスト\n";
-    confirmMsg += "・図内テキスト → コード・コマンド\n\n";
+    confirmMsg += "・図内テキスト → コード・コマンド\n";
+    confirmMsg += "・表セル → コード・コマンド\n\n";
     confirmMsg += "【表のフォント更新】\n";
     confirmMsg += "・既存ドキュメントの全表: MS明朝 → BIZ UDゴシック\n\n";
     confirmMsg += "【マスターページ】\n";
@@ -798,6 +867,7 @@ function main() {
             result.kokomokuFixed = addKokomokuSymbol(doc, result.importedStory);
             result.fontsReplaced = replaceFonts(result.importedStory);
             result.codeStyleApplied = applyCodeStyleToAnchoredObjects(doc, result.importedStory);
+            result.tableCellStyleApplied = applyCodeStyleToTableCells(doc, result.importedStory);
         }
 
         result.tableFontsUpdated = updateAllTableFonts(doc);
@@ -814,6 +884,7 @@ function main() {
         resultMsg += "スタイル変換: " + result.stylesApplied + "件\n";
         resultMsg += "小項目□追加: " + result.kokomokuFixed + "件\n";
         resultMsg += "図内コード・コマンド: " + (result.codeStyleApplied || 0) + "段落\n";
+        resultMsg += "表セルコード・コマンド: " + (result.tableCellStyleApplied || 0) + "段落\n";
         resultMsg += "フォント置換: " + (result.fontsReplaced || 0) + "件\n";
         resultMsg += "表フォント更新: " + (result.tableFontsUpdated || 0) + "文字\n";
         resultMsg += "処理時間: " + duration.toFixed(1) + "秒";
